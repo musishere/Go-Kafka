@@ -10,6 +10,15 @@ import (
 	"github.com/IBM/sarama"
 )
 
+func connectConsumer(brokersUrl []string) (sarama.Consumer, error) {
+	config := sarama.NewConfig()
+	config.Consumer.Return.Errors = true
+	consumer, err := sarama.NewConsumer(brokersUrl, config)
+	if err != nil {
+		return nil, err
+	}
+	return consumer, nil
+}
 func main() {
 	// Define the topic you want to consume messages from
 	topic := "comments"
@@ -22,11 +31,12 @@ func main() {
 	}
 
 	// Start consuming from the specified topic, partition 0, from the oldest available offset
-	consumer.ConsumePartition(topic, 0, sarama.OffsetOldest)
+	partitionConsumer, err := consumer.ConsumePartition(topic, 0, sarama.OffsetOldest)
 	if err != nil {
 		// Log and exit if partition consumption fails
-		log.Fatalf("Failed to connect to kafka: %v", err)
+		log.Fatalf("Failed to start partition consumer: %v", err)
 	}
+	defer partitionConsumer.Close()
 
 	// Indicate that the consumer has started successfully
 	fmt.Println("Consumer started")
@@ -40,7 +50,7 @@ func main() {
 
 	// Start a goroutine to listen for new messages from Kafka
 	go func() {
-		for msg := range consumer.Messages() {
+		for msg := range partitionConsumer.Messages() {
 			// Print each message received on the topic
 			fmt.Printf("Message on %s: %s\n", msg.Topic, string(msg.Value))
 		}
