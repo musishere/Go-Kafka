@@ -19,6 +19,7 @@ func connectConsumer(brokersUrl []string) (sarama.Consumer, error) {
 	}
 	return consumer, nil
 }
+
 func main() {
 	// Define the topic you want to consume messages from
 	topic := "comments"

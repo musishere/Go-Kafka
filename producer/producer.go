@@ -44,7 +44,7 @@ func ConnectProducer(brokersUrl []string) (sarama.SyncProducer, error) {
 	return conn, nil
 }
 
-func PushCommentToQueue(topic string, message []byte) {
+func PushCommentToQueue(topic string, message []byte) error {
 	// set kafka broker(s) url
 	brokersUrl := []string{"localhost:29092"}
 
@@ -52,8 +52,10 @@ func PushCommentToQueue(topic string, message []byte) {
 	producer, err := ConnectProducer(brokersUrl)
 	if err != nil {
 		// return on connection error
-		log.Fatalf("Failed to connect to kafka: %v", err)
+		log.Printf("Failed to connect to kafka: %v", err)
+		return err
 	}
+	defer producer.Close()
 
 	// create a ProducerMessage for kafka
 	msg := &sarama.ProducerMessage{
@@ -65,11 +67,13 @@ func PushCommentToQueue(topic string, message []byte) {
 	partition, offset, err := producer.SendMessage(msg)
 	if err != nil {
 		// return on publishing error
-		log.Fatalf("Failed to send message to kafka: %v", err)
+		log.Printf("Failed to send message to kafka: %v", err)
+		return err
 	}
 
 	// print successfully sent message details
 	fmt.Printf("Message sent to topic %s, partition %d, offset %d\n", topic, partition, offset)
+	return nil
 }
 
 func createComment(c *fiber.Ctx) error {
@@ -93,7 +97,11 @@ func createComment(c *fiber.Ctx) error {
 	}
 
 	// push the message to kafka topic
-	PushCommentToQueue("comments", msgBytes)
+	if err := PushCommentToQueue("comments", msgBytes); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to send message to Kafka",
+		})
+	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status":  "success",
